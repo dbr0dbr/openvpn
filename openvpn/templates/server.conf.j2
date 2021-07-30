@@ -1,0 +1,37 @@
+#local {{ server_ip }}
+#multihome
+
+port {{ ovpn_port }}
+proto {{ proto }}{{ proto_ver }}
+dev {{ dev }}
+
+ca /etc/openvpn/{{ servername }}/keys/ca.crt
+cert /etc/openvpn/{{ servername }}/keys/{{ servername }}.crt
+key /etc/openvpn/{{ servername }}/keys/{{ servername }}.key
+dh /etc/openvpn/{{ servername }}/keys/dh.pem
+tls-auth /etc/openvpn/{{ servername }}/keys/ta.key 0
+
+server {{ vpn_net }}
+{% for net in server_nets %}
+push "route {{ net }} vpn_gateway {{metric}}"
+{% endfor %}
+
+ifconfig-pool-persist /etc/openvpn/{{ servername }}/ipp.txt
+topology subnet
+keepalive 10 120
+max-clients 32
+client-to-client
+persist-key
+persist-tun
+status /var/log/openvpn-{{ servername }}-status.log
+log-append /var/log/openvpn-{{ servername }}.log
+verb 3
+mute 20
+daemon
+mode server
+tls-server
+comp-lzo
+auth MD5
+#script-security 2
+#up /etc/openvpn/{{ servername }}/routes.sh
+ 

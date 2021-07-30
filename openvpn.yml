@@ -1,0 +1,7 @@
+---
+- hosts: openvpn
+  remote_user:
+    root
+  roles:
+   - openvpn
+ 

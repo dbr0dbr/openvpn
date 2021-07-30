@@ -1,0 +1,46 @@
+#!/bin/bash
+keyname="$1"
+
+
+echo "" | sh {{ easy_rsa_dir }}/easyrsa gen-req $keyname nopass
+echo "yes" | sh {{ easy_rsa_dir }}/easyrsa sign-req client $keyname
+
+KEYS_DIR="{{ easy_rsa_dir }}/pki/"
+cat > /etc/openvpn/{{ servername }}/client_configs/$keyname.ovpn << END
+
+client
+resolv-retry infinite
+nobind
+remote {{ server_ip }} {{ ovpn_port }}
+proto {{ proto }}
+dev {{ dev }}
+comp-lzo
+remote-cert-tls server
+
+<ca>
+`cat {{ easy_rsa_dir }}/pki/ca.crt`
+</ca>
+
+<cert>
+`sed -n '/BEGIN/,$p' {{ easy_rsa_dir }}/pki/issued/$keyname.crt`
+</cert>
+
+<key>
+`cat {{ easy_rsa_dir }}/pki/private/$keyname.key`
+</key>
+
+tls-client
+key-direction 1
+<tls-auth>
+`cat {{ easy_rsa_dir }}/ta.key`
+</tls-auth>
+
+auth MD5
+float
+keepalive 10 120
+persist-key
+persist-tun
+verb 0
+
+END
+ 
