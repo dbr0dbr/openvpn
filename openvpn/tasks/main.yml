@@ -3,32 +3,44 @@
   yum:
     name: epel-release
   environment: "{{ proxy_env }}"
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Open ports for openvpn
+  firewalld:
+    port: "{{ ovpn_port }}/{{ proto }}"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
 
 - name: Install openvpn
-  yum:
-    name: openvpn
+  package:
+    name: ['openvpn', 'git']
   environment: "{{ proxy_env }}"
-
-- name: Install easyrsa
-  yum:
-    name: easy-rsa
-  environment: "{{ proxy_env }}"
-
-- name: Create server directory if it does not exist
-  file:
-    path: /etc/openvpn/{{ servername }}
-    state: directory
 
 - name: Create easy-rsa directory if it does not exist
   file:
     path: '{{ easy_rsa_dir }}'
     state: directory
-    
+
+- name: OpenVPN | PKI | EasyRSA Checkout
+  git:
+    repo: https://github.com/OpenVPN/easy-rsa.git
+    accept_hostkey: True
+    remote: github
+    dest: '/etc/openvpn/easy-rsa'
+
+- name: Create server directory if it does not exist
+  file:
+    path: /etc/openvpn/{{ servername }}
+    state: directory
+   
 - name: Copy file with owner and permissions
   copy:
     remote_src: yes
-    src: /usr/share/easy-rsa/3.0/
+    src: /etc/openvpn/easy-rsa/easyrsa3/
     dest: '{{ easy_rsa_dir }}'
+  
 
 - name: Template a file to vars
   template:
@@ -39,15 +51,9 @@
   shell: pwd; echo 'yes' | sh easyrsa init-pki
   args:
     chdir: "{{ easy_rsa_dir }}"
-  #register: output
   tags: 
     - never
     - new_pki
-
-- name: stat pki_dir
-  stat:
-    path: "{{ easy_rsa_dir }}/pki"
-  register: pki_dir
 
 - name: Intialize new PKI
   shell: pwd; echo 'yes' | sh easyrsa init-pki
@@ -55,7 +61,6 @@
     chdir: "{{ easy_rsa_dir }}"
     creates: "{{ easy_rsa_dir }}/pki"
   
-
 - name: Build CA
   shell: echo '' | sh easyrsa build-ca nopass
   args:
@@ -86,7 +91,7 @@
       chdir: "{{ easy_rsa_dir }}"
       creates: "{{ easy_rsa_dir }}/ta.key"
 
-- name: Create server keys directory if it does not exist
+- name: Create keys directory if it does not exist
   file:
     path: /etc/openvpn/{{ servername }}/keys
     state: directory
@@ -96,6 +101,7 @@
     remote_src: yes
     src: '{{ item }}'
     dest: '/etc/openvpn/{{ servername }}/keys/'
+    mode: 0600
   with_items:
     - '{{ easy_rsa_dir }}/pki/ca.crt'
     - '{{ easy_rsa_dir }}/pki/private/{{ servername }}.key'
@@ -111,14 +117,7 @@
     dest: '/etc/openvpn/{{ servername }}.conf'
   notify:
     - restart openvpn
-
-- name: Open ports for openvpn
-  firewalld:
-    port: "{{ ovpn_port }}/{{ proto }}"
-    permanent: yes
-    state: enabled
-    immediate: yes
-    
+  
 - name: Template for script add_ovpn_client.sh
   template:
     src: add_ovpn_client.sh.j2
@@ -131,7 +130,3 @@
     state: directory
 
 
-
-  register: output
-
-- debug: var=output

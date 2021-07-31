@@ -8,4 +8,4 @@ servername=my_ovpn_server
 
 [openvpn]
 openvpn_centos	ansible_host=192.168.121.121
- 
+openvpn_debian	ansible_host=192.168.121.147

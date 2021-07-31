@@ -1,12 +1,12 @@
 #!/bin/bash
 keyname="$1"
 
-
+cd {{ easy_rsa_dir }}
 echo "" | sh {{ easy_rsa_dir }}/easyrsa gen-req $keyname nopass
 echo "yes" | sh {{ easy_rsa_dir }}/easyrsa sign-req client $keyname
 
 KEYS_DIR="{{ easy_rsa_dir }}/pki/"
-cat > /etc/openvpn/{{ servername }}/client_configs/$keyname.ovpn << END
+cat > /etc/openvpn/{{ servername }}/client_configs/$keyname.conf << END
 
 client
 resolv-retry infinite
