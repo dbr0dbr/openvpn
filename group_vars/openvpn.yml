@@ -1,4 +1,4 @@
-servername: server
+servername: super_server
 easy_rsa_dir: /etc/openvpn/{{ servername }}/easy-rsa
 proto: udp
 proto_ver: 4
@@ -10,5 +10,4 @@ server_nets:
   - '10.112.0.0 255.255.255.0'
   - '10.113.0.0 255.255.255.0'
   - '10.114.0.0 255.255.255.0'
-metric: 300
-proxy_env: ''
+metric: 300 
