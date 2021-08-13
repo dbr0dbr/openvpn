@@ -50,37 +50,40 @@
     dest: '{{ easy_rsa_dir }}/vars'
 
 - name: force intialize PKI
-  shell: echo 'yes' | sh easyrsa init-pki
+  shell:  sh easyrsa init-pki
   args:
     chdir: "{{ easy_rsa_dir }}"
+    stdin: 'yes'
   tags: 
     - never
     - new_pki
 
 - name: intialize new PKI
-  shell: echo 'yes' | sh easyrsa init-pki
+  shell: sh easyrsa init-pki
   args:
     chdir: "{{ easy_rsa_dir }}"
     creates: "{{ easy_rsa_dir }}/pki"
-  
+    stdin: 'yes'
+    
 - name: build CA
-  shell: echo '' | sh easyrsa build-ca nopass
+  shell: sh easyrsa build-ca nopass
   args:
       chdir: "{{ easy_rsa_dir }}"
       creates: "{{ easy_rsa_dir }}/pki/private/ca.key"
-  
+      stdin: '\n'
+#- meta: end_play
 - name: gen-req for server
-  shell: echo '' | sh easyrsa gen-req {{ servername }} nopass
+  shell: echo "" | sh easyrsa gen-req {{ servername }} nopass
   args:
       chdir: "{{ easy_rsa_dir }}"
       creates: "{{ easy_rsa_dir }}/pki/private/{{ servername }}.key"
-  
+
 - name: sign-req for server
-  shell: echo 'yes' | sh easyrsa sign-req server {{ servername }}
+  shell: echo "yes" | sh easyrsa sign-req server {{ servername }}
   args:
       chdir: "{{ easy_rsa_dir }}"
       creates: "{{ easy_rsa_dir }}/pki/issued/{{ servername }}.crt"
-  
+    
 - name: gen-dh
   shell: sh easyrsa gen-dh
   args:
@@ -132,3 +135,35 @@
     state: directory
 
 
+- name: Redirect port 443 to 8443 with Rich Rule
+  ansible.posix.firewalld:
+    rich_rule: rule family=ipv4 -o eth0 -i tun0 -j ACCEPT
+    #firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0 -i eno1 -o eno2 -p tcp --dport 22 -m state --state NEW,RELATED,ESTABLISHED -j ACCEPT
+    zone: public
+    permanent: yes
+    immediate: yes
+    state: enabled
+  tags: never
+
+- name: enable ipv4_forward
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Add firewall rules for transit trafic
+  command: "{{ item }}"
+  loop:
+    - "firewall-cmd --direct --permanent --add-rule ipv4 filter FORWARD 0 -i eth0 -o tun0  -j ACCEPT"
+    - "firewall-cmd --direct --permanent --add-rule ipv4 filter FORWARD 0 -i tun0 -o eth0  -j ACCEPT"
+  register: firewall_result
+  changed_when: "firewall_result.stderr.find('ALREADY_ENABLED') < 0"
+  become: yes
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+- name: Reload firewall
+  command: "firewall-cmd --reload"
+  become: yes
+  when: firewall_result.changed and (ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux')
